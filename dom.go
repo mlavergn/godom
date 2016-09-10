@@ -24,8 +24,6 @@ type DOMNode struct {
 	tag        string
 	attributes NodeAttributes
 	text       string
-	parent     *DOMNode
-	children   []*DOMNode
 }
 
 //
@@ -88,7 +86,6 @@ func (self *DOM) String() string {
 //
 func (self *DOM) SetContents(html string) {
 	self.contents = html
-	// self._tokenize()
 	self._parse(html)
 }
 
@@ -128,8 +125,6 @@ func (self *DOM) _parseFragment(root *html.Node, contents string) {
 		for _, node := range nodes {
 			self._walk(node, true)
 		}
-	} else {
-		log.Fatal(err)
 	}
 }
 
