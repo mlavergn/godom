@@ -60,6 +60,7 @@ func (self *DOMNode) Attr(key string) string {
 type DOM struct {
 	contents string
 	document []*DOMNode
+	nodes    map[string][]*DOMNode
 }
 
 //
@@ -67,6 +68,7 @@ type DOM struct {
 //
 func NewDOM() *DOM {
 	self := &DOM{}
+	self.nodes = make(map[string][]*DOMNode)
 	return self
 }
 
@@ -140,6 +142,12 @@ func (self *DOM) _walk(node *html.Node, fragment bool) {
 		if !fragment || (fragment && fragmentSkipTags[node.Data] == 0) {
 			domNode := NewDOMNode(node.Data, self._nodeAttributes(node))
 			self.document = append(self.document, domNode)
+			nodeArr := self.nodes[domNode.tag]
+			if nodeArr != nil {
+				self.nodes[domNode.tag] = append(nodeArr, domNode)
+			} else {
+				self.nodes[domNode.tag] = []*DOMNode{domNode}
+			}
 		}
 	case html.TextNode:
 		text := strings.TrimSpace(node.Data)
@@ -190,14 +198,13 @@ func (self *DOM) _parse(contents string) {
 //
 func (self *DOM) DumpLinks() []string {
 	result := make([]string, 100)
-	for i := range self.document {
-		node := self.document[i]
-		if node.tag == "a" {
-			attr := node.attributes
-			value := attr["href"]
-			if len(value) > 0 {
-				result = append(result, value)
-			}
+
+	tagNodes := self.nodes["a"]
+	for _, node := range tagNodes {
+		attr := node.attributes
+		value := attr["href"]
+		if len(value) > 0 {
+			result = append(result, value)
 		}
 	}
 
@@ -209,27 +216,21 @@ func (self *DOM) DumpLinks() []string {
 //
 func (self *DOM) Find(tag string, attributes NodeAttributes) (result *DOMNode) {
 	var found bool
-	var node *DOMNode
 
-	for i := range self.document {
-		node = self.document[i]
-		if node.tag == tag {
-			// found a matching tag
-			attributes := node.attributes
-			found = true
-			for k, v := range attributes {
-				if attributes[k] != v {
-					found = false
-				}
-			}
-			if found {
-				break
+	tagNodes := self.nodes[tag]
+	for _, node := range tagNodes {
+		// found a matching tag
+		attributes := node.attributes
+		found = true
+		for k, v := range attributes {
+			if attributes[k] != v {
+				found = false
 			}
 		}
-	}
-
-	if found {
-		result = node
+		if found {
+			result = node
+			break
+		}
 	}
 
 	return result
@@ -240,25 +241,19 @@ func (self *DOM) Find(tag string, attributes NodeAttributes) (result *DOMNode) {
 //
 func (self *DOM) FindWithKey(tag string, substring string) (result *DOMNode) {
 	var found bool
-	var node *DOMNode
 
-	for i := range self.document {
-		node = self.document[i]
-		if node.tag == tag {
-			// found a matching tag
-			contents := node.text
-			idx := strings.Index(contents, substring)
-			if idx >= 0 {
-				found = true
-			}
-			if found {
-				break
-			}
+	tagNodes := self.nodes[tag]
+	for _, node := range tagNodes {
+		// found a matching tag
+		contents := node.text
+		idx := strings.Index(contents, substring)
+		if idx >= 0 {
+			found = true
 		}
-	}
-
-	if found {
-		result = node
+		if found {
+			result = node
+			break
+		}
 	}
 
 	return result
