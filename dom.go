@@ -77,8 +77,8 @@ func NewDOM() *DOM {
 //
 func (self *DOM) String() string {
 	result := ""
-	for n := range self.document {
-		result += fmt.Sprintf("Node:\n%s\n", self.document[n])
+	for _, node := range self.document {
+		result += fmt.Sprintf("Node:\n%s\n", node)
 	}
 	return result
 }
@@ -108,14 +108,14 @@ func (self *DOM) ContentSize() int {
 //
 // DOM: Parse the Token attributes into a map.
 //
-func (self *DOM) _nodeAttributes(node *html.Node) NodeAttributes {
-	attr := make(NodeAttributes)
+func (self *DOM) _nodeAttributes(node *html.Node) (attrs NodeAttributes) {
+	attrs = make(NodeAttributes)
 
-	for _, a := range node.Attr {
-		attr[a.Key] = a.Val
+	for _, attr := range node.Attr {
+		attrs[attr.Key] = attr.Val
 	}
 
-	return attr
+	return attrs
 }
 
 //
@@ -196,8 +196,8 @@ func (self *DOM) _parse(contents string) {
 //
 //
 //
-func (self *DOM) DumpLinks() []string {
-	result := make([]string, 100)
+func (self *DOM) DumpLinks() (result []string) {
+	result = make([]string, 100)
 
 	tagNodes := self.nodes["a"]
 	for _, node := range tagNodes {
@@ -220,10 +220,10 @@ func (self *DOM) Find(tag string, attributes NodeAttributes) (result *DOMNode) {
 	tagNodes := self.nodes[tag]
 	for _, node := range tagNodes {
 		// found a matching tag
-		attributes := node.attributes
+		nodeAttrs := node.attributes
 		found = true
 		for k, v := range attributes {
-			if attributes[k] != v {
+			if nodeAttrs[k] != v {
 				found = false
 			}
 		}
@@ -240,19 +240,14 @@ func (self *DOM) Find(tag string, attributes NodeAttributes) (result *DOMNode) {
 // DOM: Find the Node of type tag with text containing key
 //
 func (self *DOM) FindWithKey(tag string, substring string) (result *DOMNode) {
-	var found bool
-
 	tagNodes := self.nodes[tag]
 	for _, node := range tagNodes {
 		// found a matching tag
 		contents := node.text
 		idx := strings.Index(contents, substring)
 		if idx >= 0 {
-			found = true
-		}
-		if found {
-			result = node
-			break
+      result = node
+      break
 		}
 	}
 
@@ -262,9 +257,7 @@ func (self *DOM) FindWithKey(tag string, substring string) (result *DOMNode) {
 //
 // DOM: Find the given tag with the specified attributes
 //
-func (self *DOM) FindTextForClass(tag string, class string) string {
-	result := "--"
-
+func (self *DOM) FindTextForClass(tag string, class string) (result string) {
 	node := self.Find(tag, NodeAttributes{"class": class})
 
 	if node != nil {
@@ -277,9 +270,7 @@ func (self *DOM) FindTextForClass(tag string, class string) string {
 //
 // DOM: Find the JSON key with text containing substring
 //
-func (self *DOM) FindJsonForScriptWithKey(substring string) JSONMap {
-	var result JSONMap = nil
-
+func (self *DOM) FindJsonForScriptWithKey(substring string) (result JSONMap) {
 	node := self.FindWithKey("script", substring)
 
 	if node != nil {
