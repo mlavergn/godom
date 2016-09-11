@@ -1,0 +1,81 @@
+<!--
+Method: GET
+Status: 200
+-->
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html>
+  <head>
+    <noscript>
+      <meta http-equiv="Refresh" content="1; http://example.com/cp/tdl4/index.asp?cmd=login&switchip=127.0.0.1&mac=aa:aa:aa:aa:aa:aa&ip=10.1.1.1&essid=Example%20WiFi&apname=TDL-QC-STL-05269-WAP1&apgroup=05269&url=http%3A%2F%2Fwww%2Eexample%2Ecom%2F%2F"/>
+    </noscript>
+    <script>
+      var timeOut = 1;
+      var ot = 0;
+      var url = "http://example.com/cp/tdl4/index.asp?cmd=login&switchip=127.0.0.1&mac=aa:aa:aa:aa:aa:ff&ip=10.1.1.1&essid=Example%20WiFi&apname=TDL-QC-STL-05269-WAP1&apgroup=05269&url=http%3A%2F%2Fwww%2Eexample%2Ecom%2F%2F";
+      var urlName = "Yahoo!";
+
+      function doit() {
+	  var t = (new Date()).getTime();
+	  if (ot == 0) { ot = t; }
+	  else if (ot + timeOut * 1000 < t) {
+	      window.location.href = url;
+	      return;
+	  }
+	  
+	  var dt = Math.ceil((ot + timeOut * 1000 - t) / 1000);
+	  if (typeof(time_span) == "object") {
+	      time_span.innerHTML = dt;
+	  }
+	  else if (typeof(document.getElementById) == "function") {
+	      var x = document.getElementById("time_span");
+	      if (x) x.innerHTML = dt;
+	  }
+	  setTimeout("doit()", 200);
+      }
+
+    </script>
+	<style type="text/css">
+	body {
+		background-color: #000;
+		color: #fff;
+		font-family: verdana, arial, helvetica, sans-serif;
+		font-size: 12px;
+	}
+	img {
+		position: absolute;
+	}
+	p {
+		width: 300px;
+		text-align: left;
+		position: absolute;
+		left: 150px;
+		top: 30px;
+	}
+	#container {
+		margin-top: 100px;
+		position: relative;
+		width: 500px;
+		margin-left: auto;
+		margin-right: auto;
+	}
+	</style>
+  </head>
+  <body onload="doit()">
+<div id="container">
+	<img src="/images/watch.gif" width="123" height="123" />
+    <noscript>
+      <p>Please wait.  You will be redirected to the authentication page in 1 seconds.</p>
+    </noscript>
+    <script>
+      document.write(
+          "<p>Please wait. You will be redirected to the authentication page in " +
+          "<span id='time_span'>1</span> seconds.</p>");
+    </script>
+</div>
+</div>
+  </body>
+</html>
+
+<!-- EOF -->
