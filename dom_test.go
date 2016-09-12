@@ -22,7 +22,7 @@ func TestDOMSetContents(t *testing.T) {
 
 func _loadData(t *testing.T, fileName string) (contents string) {
   _, filename, _, _ := runtime.Caller(0)
-  contentPath := path.Join(path.Dir(filename), "_testdata", "test_a.html")
+  contentPath := path.Join(path.Dir(filename), "_testdata", fileName)
   bytes, err := ioutil.ReadFile(contentPath)
   if err != nil {
     t.Errorf("%s", err)
@@ -43,6 +43,39 @@ func TestFind(t *testing.T) {
   if meta == nil {
     t.Errorf("failed to find META")
   }
+}
 
-  log.Println(meta)
+func TestAttr(t *testing.T) {
+  contents := _loadData(t, "test_b.html")
+
+  d := NewDOM()
+  d.SetContents(contents)
+
+  args := map[string]string{}
+  
+  node := d.Find("form", map[string]string{"id":"example_connect"})
+  if node != nil {
+    url := node.Attr("action")
+    if len(url) > 0 {
+      node = d.Find("input", map[string]string{"name":"cmd"})
+      args["cmd"] = node.Attr("value")
+
+      node = d.Find("input", map[string]string{"name":"user"})
+      args["user"] = node.Attr("value")
+
+      node = d.Find("input", map[string]string{"name":"password"})
+      args["password"] = node.Attr("value")
+
+      node = d.Find("input", map[string]string{"name":"url"})
+      args["url"] = node.Attr("value")
+
+      if args["user"] != "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA@private" {
+        t.Error("failed to parse arguments")
+      }
+    } else {
+      t.Error("failed to find ACTION")
+    }
+  } else {
+    t.Error("failed to find FORM")
+  }
 }
