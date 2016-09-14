@@ -24,20 +24,32 @@ type DOMNode struct {
 	tag        string
 	attributes NodeAttributes
 	text       string
+	parent     *DOMNode
+	children   []*DOMNode
 }
 
 //
 // Node: Constructor.
 //
-func NewDOMNode(tag string, attributes NodeAttributes) *DOMNode {
-	return &DOMNode{tag: strings.ToLower(tag), attributes: attributes}
+func NewDOMNode(parent *DOMNode, tag string, attributes NodeAttributes) *DOMNode {
+	return &DOMNode{parent: parent, children: []*DOMNode{}, tag: strings.ToLower(tag), attributes: attributes}
 }
 
 //
 // Node: String representation.
 //
-func (self *DOMNode) String() string {
-	return fmt.Sprintf("Tag:\t%s\nAttr:\t%s\nText:\t%s\n", self.tag, self.attributes, self.text)
+func (self *DOMNode) String() (desc string) {
+	desc = ""
+	if self.parent != nil {
+		desc += "Parent: " + self.parent.tag + "\n"
+	}
+	desc += fmt.Sprintf("Tag:\t%s\nAttr:\t%s\nText:\t%s\n", self.tag, self.attributes, self.text)
+	if len(self.children) != 0 {
+		for _, child := range self.children {
+			desc += "Child: " + child.tag + "\n"
+		}
+	}
+	return desc
 }
 
 //
@@ -75,8 +87,8 @@ func NewDOM() *DOM {
 //
 // DOM: String representation.
 //
-func (self *DOM) String() string {
-	result := ""
+func (self *DOM) String() (result string) {
+	result = ""
 	for _, node := range self.document {
 		result += fmt.Sprintf("Node:\n%s\n", node)
 	}
@@ -121,11 +133,11 @@ func (self *DOM) _nodeAttributes(node *html.Node) (attrs NodeAttributes) {
 //
 // DOM: Parse the Token attributes into a map.
 //
-func (self *DOM) _parseFragment(root *html.Node, contents string) {
+func (self *DOM) _parseFragment(parent *DOMNode, root *html.Node, contents string) {
 	nodes, err := html.ParseFragment(strings.NewReader(contents), root)
 	if err == nil {
 		for _, node := range nodes {
-			self._walk(node, true)
+			self._walk(parent, node, true)
 		}
 	}
 }
@@ -133,14 +145,19 @@ func (self *DOM) _parseFragment(root *html.Node, contents string) {
 //
 // DOM: Walk the DOM and parse the HTML tokens into Nodes.
 //
-func (self *DOM) _walk(node *html.Node, fragment bool) {
+func (self *DOM) _walk(parent *DOMNode, root *html.Node, fragment bool) {
 	parseSkipTags := map[string]int{"script": 1, "style": 1, "body": 1}
 	fragmentSkipTags := map[string]int{"html": 1, "head": 1, "body": 1}
 
-	switch node.Type {
+	switch root.Type {
 	case html.ElementNode:
-		if !fragment || (fragment && fragmentSkipTags[node.Data] == 0) {
-			domNode := NewDOMNode(node.Data, self._nodeAttributes(node))
+		if !fragment || (fragment && fragmentSkipTags[root.Data] == 0) {
+			domNode := NewDOMNode(parent, root.Data, self._nodeAttributes(root))
+			// set the children and swap
+			if parent != nil {
+				parent.children = append(parent.children, domNode)
+			}
+			parent = domNode
 			self.document = append(self.document, domNode)
 			nodeArr := self.nodes[domNode.tag]
 			if nodeArr != nil {
@@ -150,36 +167,36 @@ func (self *DOM) _walk(node *html.Node, fragment bool) {
 			}
 		}
 	case html.TextNode:
-		text := strings.TrimSpace(node.Data)
+		text := strings.TrimSpace(root.Data)
 		if len(text) > 0 {
-			if node.Parent == nil || parseSkipTags[node.Parent.Data] == 0 {
-				self._parseFragment(node.Parent, text)
+			if root.Parent == nil || parseSkipTags[root.Parent.Data] == 0 {
+				self._parseFragment(parent, root.Parent, text)
 			} else {
 				dlen := len(self.document)
 				if dlen > 0 {
 					owningNode := self.document[dlen-1]
 					if owningNode != nil {
-						owningNode.text = strings.TrimSpace(node.Data)
+						owningNode.text = strings.TrimSpace(root.Data)
 					}
 				}
 			}
 		}
 	case html.CommentNode:
-		domNode := NewDOMNode("comment", self._nodeAttributes(node))
+		domNode := NewDOMNode(parent, "comment", self._nodeAttributes(root))
 		self.document = append(self.document, domNode)
 	case html.ErrorNode:
-		domNode := NewDOMNode("error", self._nodeAttributes(node))
+		domNode := NewDOMNode(parent, "error", self._nodeAttributes(root))
 		self.document = append(self.document, domNode)
 	case html.DocumentNode:
-		domNode := NewDOMNode("document", self._nodeAttributes(node))
+		domNode := NewDOMNode(parent, "document", self._nodeAttributes(root))
 		self.document = append(self.document, domNode)
 	case html.DoctypeNode:
-		domNode := NewDOMNode("doctype", self._nodeAttributes(node))
+		domNode := NewDOMNode(parent, "doctype", self._nodeAttributes(root))
 		self.document = append(self.document, domNode)
 	}
 
-	for child := node.FirstChild; child != nil; child = child.NextSibling {
-		self._walk(child, fragment)
+	for child := root.FirstChild; child != nil; child = child.NextSibling {
+		self._walk(parent, child, fragment)
 	}
 }
 
@@ -189,7 +206,7 @@ func (self *DOM) _walk(node *html.Node, fragment bool) {
 func (self *DOM) _parse(contents string) {
 	doc, err := html.Parse(strings.NewReader(contents))
 	if err == nil {
-		self._walk(doc, false)
+		self._walk(nil, doc, false)
 	}
 }
 
@@ -214,9 +231,8 @@ func (self *DOM) DumpLinks() (result []string) {
 //
 // DOM: Find the Node of type tag with the specified attributes
 //
-func (self *DOM) Find(tag string, attributes NodeAttributes) (result *DOMNode) {
-	var found bool
-
+func (self *DOM) Find(tag string, attributes NodeAttributes) (result []*DOMNode) {
+	found := true
 	tagNodes := self.nodes[tag]
 	for _, node := range tagNodes {
 		// found a matching tag
@@ -228,8 +244,7 @@ func (self *DOM) Find(tag string, attributes NodeAttributes) (result *DOMNode) {
 			}
 		}
 		if found {
-			result = node
-			break
+			result = append(result, node)
 		}
 	}
 
@@ -239,15 +254,14 @@ func (self *DOM) Find(tag string, attributes NodeAttributes) (result *DOMNode) {
 //
 // DOM: Find the Node of type tag with text containing key
 //
-func (self *DOM) FindWithKey(tag string, substring string) (result *DOMNode) {
+func (self *DOM) FindWithKey(tag string, substring string) (result []*DOMNode) {
 	tagNodes := self.nodes[tag]
 	for _, node := range tagNodes {
 		// found a matching tag
 		contents := node.text
 		idx := strings.Index(contents, substring)
 		if idx >= 0 {
-      result = node
-      break
+			result = append(result, node)
 		}
 	}
 
@@ -258,10 +272,10 @@ func (self *DOM) FindWithKey(tag string, substring string) (result *DOMNode) {
 // DOM: Find the given tag with the specified attributes
 //
 func (self *DOM) FindTextForClass(tag string, class string) (result string) {
-	node := self.Find(tag, NodeAttributes{"class": class})
+	nodes := self.Find(tag, NodeAttributes{"class": class})
 
-	if node != nil {
-		result = node.text
+	if len(nodes) > 0 {
+		result = nodes[0].text
 	}
 
 	return result
@@ -271,10 +285,10 @@ func (self *DOM) FindTextForClass(tag string, class string) (result string) {
 // DOM: Find the JSON key with text containing substring
 //
 func (self *DOM) FindJsonForScriptWithKey(substring string) (result JSONMap) {
-	node := self.FindWithKey("script", substring)
+	nodes := self.FindWithKey("script", substring)
 
-	if node != nil {
-		contents := node.text
+	if len(nodes) > 0 {
+		contents := nodes[0].text
 		idx := strings.Index(contents, substring)
 		sub := contents[idx:]
 		idx = strings.Index(sub, "}")
