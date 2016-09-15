@@ -21,18 +21,18 @@ type JSONMap map[string]interface{}
 // DOM Node
 //
 type DOMNode struct {
-	tag        string
-	attributes NodeAttributes
-	text       string
-	parent     *DOMNode
-	children   []*DOMNode
+	Tag        string
+	Attributes NodeAttributes
+	Text       string
+	Parent     *DOMNode
+	Children   []*DOMNode
 }
 
 //
 // Node: Constructor.
 //
 func NewDOMNode(parent *DOMNode, tag string, attributes NodeAttributes) *DOMNode {
-	return &DOMNode{parent: parent, children: []*DOMNode{}, tag: strings.ToLower(tag), attributes: attributes}
+	return &DOMNode{Parent: parent, Children: []*DOMNode{}, Tag: strings.ToLower(tag), Attributes: attributes}
 }
 
 //
@@ -40,30 +40,23 @@ func NewDOMNode(parent *DOMNode, tag string, attributes NodeAttributes) *DOMNode
 //
 func (self *DOMNode) String() (desc string) {
 	desc = ""
-	if self.parent != nil {
-		desc += "Parent: " + self.parent.tag + "\n"
+	if self.Parent != nil {
+		desc += "Parent: " + self.Parent.Tag + "\n"
 	}
-	desc += fmt.Sprintf("Tag:\t%s\nAttr:\t%s\nText:\t%s\n", self.tag, self.attributes, self.text)
-	if len(self.children) != 0 {
-		for _, child := range self.children {
-			desc += "Child: " + child.tag + "\n"
+	desc += fmt.Sprintf("Tag:\t%s\nAttr:\t%s\nText:\t%s\n", self.Tag, self.Attributes, self.Text)
+	if len(self.Children) != 0 {
+		for _, child := range self.Children {
+			desc += "Child: " + child.Tag + "\n"
 		}
 	}
 	return desc
 }
 
 //
-// Node: String with text contents.
-//
-func (self *DOMNode) Text() string {
-	return self.text
-}
-
-//
 // Node: String with value of the provided attribute key.
 //
 func (self *DOMNode) Attr(key string) string {
-	return self.attributes[key]
+	return self.Attributes[key]
 }
 
 //
@@ -155,15 +148,15 @@ func (self *DOM) _walk(parent *DOMNode, root *html.Node, fragment bool) {
 			domNode := NewDOMNode(parent, root.Data, self._nodeAttributes(root))
 			// set the children and swap
 			if parent != nil {
-				parent.children = append(parent.children, domNode)
+				parent.Children = append(parent.Children, domNode)
 			}
 			parent = domNode
 			self.document = append(self.document, domNode)
-			nodeArr := self.nodes[domNode.tag]
+			nodeArr := self.nodes[domNode.Tag]
 			if nodeArr != nil {
-				self.nodes[domNode.tag] = append(nodeArr, domNode)
+				self.nodes[domNode.Tag] = append(nodeArr, domNode)
 			} else {
-				self.nodes[domNode.tag] = []*DOMNode{domNode}
+				self.nodes[domNode.Tag] = []*DOMNode{domNode}
 			}
 		}
 	case html.TextNode:
@@ -176,7 +169,7 @@ func (self *DOM) _walk(parent *DOMNode, root *html.Node, fragment bool) {
 				if dlen > 0 {
 					owningNode := self.document[dlen-1]
 					if owningNode != nil {
-						owningNode.text = strings.TrimSpace(root.Data)
+						owningNode.Text = strings.TrimSpace(root.Data)
 					}
 				}
 			}
@@ -218,7 +211,7 @@ func (self *DOM) DumpLinks() (result []string) {
 
 	tagNodes := self.nodes["a"]
 	for _, node := range tagNodes {
-		attr := node.attributes
+		attr := node.Attributes
 		value := attr["href"]
 		if len(value) > 0 {
 			result = append(result, value)
@@ -236,7 +229,7 @@ func (self *DOM) Find(tag string, attributes NodeAttributes) (result []*DOMNode)
 	tagNodes := self.nodes[tag]
 	for _, node := range tagNodes {
 		// found a matching tag
-		nodeAttrs := node.attributes
+		nodeAttrs := node.Attributes
 		found = true
 		for k, v := range attributes {
 			if nodeAttrs[k] != v {
@@ -258,7 +251,7 @@ func (self *DOM) FindWithKey(tag string, substring string) (result []*DOMNode) {
 	tagNodes := self.nodes[tag]
 	for _, node := range tagNodes {
 		// found a matching tag
-		contents := node.text
+		contents := node.Text
 		idx := strings.Index(contents, substring)
 		if idx >= 0 {
 			result = append(result, node)
@@ -275,7 +268,7 @@ func (self *DOM) FindTextForClass(tag string, class string) (result string) {
 	nodes := self.Find(tag, NodeAttributes{"class": class})
 
 	if len(nodes) > 0 {
-		result = nodes[0].text
+		result = nodes[0].Text
 	}
 
 	return result
@@ -288,7 +281,7 @@ func (self *DOM) FindJsonForScriptWithKey(substring string) (result JSONMap) {
 	nodes := self.FindWithKey("script", substring)
 
 	if len(nodes) > 0 {
-		contents := nodes[0].text
+		contents := nodes[0].Text
 		idx := strings.Index(contents, substring)
 		sub := contents[idx:]
 		idx = strings.Index(sub, "}")

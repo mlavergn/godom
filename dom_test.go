@@ -9,7 +9,6 @@ import (
   "runtime"
   "path"
   "io/ioutil"
-  "log"
 )
 
 func TestDOMSetContents(t *testing.T) {
@@ -55,19 +54,19 @@ func TestAttr(t *testing.T) {
   
   node := d.Find("form", map[string]string{"id":"example_connect"})
   if node != nil {
-    url := node.Attr("action")
+    url := node[0].Attr("action")
     if len(url) > 0 {
       node = d.Find("input", map[string]string{"name":"cmd"})
-      args["cmd"] = node.Attr("value")
+      args["cmd"] = node[0].Attr("value")
 
       node = d.Find("input", map[string]string{"name":"user"})
-      args["user"] = node.Attr("value")
+      args["user"] = node[0].Attr("value")
 
       node = d.Find("input", map[string]string{"name":"password"})
-      args["password"] = node.Attr("value")
+      args["password"] = node[0].Attr("value")
 
       node = d.Find("input", map[string]string{"name":"url"})
-      args["url"] = node.Attr("value")
+      args["url"] = node[0].Attr("value")
 
       if args["user"] != "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA@private" {
         t.Error("failed to parse arguments")
