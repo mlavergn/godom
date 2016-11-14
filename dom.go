@@ -5,12 +5,12 @@
 package godom
 
 import (
-	."golog"
-	"golang.org/x/net/html"
 	"encoding/json"
 	"fmt"
+	"golang.org/x/net/html"
+	. "golog"
 	"strings"
-	"strconv"
+	"sync"
 )
 
 // DOMNodeAttributes map of strings keyed by strings
@@ -33,8 +33,8 @@ type DOMNode struct {
 //
 // NewDOMNode constructor
 //
-func NewDOMNode(parent *DOMNode, tag string, attributes DOMNodeAttributes) *DOMNode {
-	return &DOMNode{Parent: parent, Children: []*DOMNode{}, Tag: strings.ToLower(tag), Attributes: attributes}
+func NewDOMNode(index int, parent *DOMNode, tag string, attributes DOMNodeAttributes) *DOMNode {
+	return &DOMNode{Index: index, Parent: parent, Children: []*DOMNode{}, Tag: strings.ToLower(tag), Attributes: attributes}
 }
 
 //
@@ -44,11 +44,11 @@ func (id *DOMNode) String() (desc string) {
 	desc = ""
 	desc += fmt.Sprintf("\nIndex:\t%d\nTag:\t%s\nAttr:\t%s\nText:\t%s\n", id.Index, id.Tag, id.Attributes, id.Text)
 	if id.Parent != nil {
-		desc += "Parent:\t" + strconv.Itoa(id.Parent.Index) + "-" + id.Parent.Tag + "\n"
+		desc += fmt.Sprintf("Edges:\n\tParent:\t%d - %s\n", id.Parent.Index, id.Parent.Tag)
 	}
 	if len(id.Children) != 0 {
 		for _, child := range id.Children {
-			desc += "Child:\t" + child.Tag + "\n"
+			desc += fmt.Sprintf("\tChild:\t%d - %s\n", child.Index, child.Tag)
 		}
 	}
 	return desc
@@ -65,9 +65,11 @@ func (id *DOMNode) Attr(key string) string {
 // DOM Document.
 //
 type DOM struct {
-	contents string
-	document []*DOMNode
-	nodes    map[string][]*DOMNode
+	contents  string
+	document  []*DOMNode
+	nodes     map[string][]*DOMNode
+	rootNode  *DOMNode
+	nodeCount int
 }
 
 //
@@ -76,6 +78,7 @@ type DOM struct {
 func NewDOM() *DOM {
 	id := &DOM{}
 	id.nodes = make(map[string][]*DOMNode)
+	id.nodeCount = 0
 	return id
 }
 
@@ -109,46 +112,41 @@ func (id *DOM) Contents() string {
 // ContentLength : The byte count of the raw html contents.
 //
 func (id *DOM) ContentLength() int {
-	return len(id.Contents())
+	return len(id.contents)
 }
 
 //
 // RootNode : The HTML root node
 //
-var rootNode *DOMNode
 func (id *DOM) RootNode() (result *DOMNode) {
-	if rootNode == nil {
+	if id.rootNode == nil {
 		// we're looking for the tidy-ed HTML node at index 1
 		// there's the childless DOCUMENT node at index 0
-		for i:=0; i<len(id.document); i++ {
+		for i := 0; i < len(id.document); i++ {
 			if id.document[i].Tag == "html" {
-				rootNode = id.document[i]
+				id.rootNode = id.document[i]
 			}
 		}
 	}
 
-	return rootNode
+	return id.rootNode
 }
 
 //
-// DumpNodes : The byte count of the raw html contents.
+// DumpNodes : Print the textual representation of the DOM
 //
-func (id *DOM) DumpNodes() {
-		LogInfo(id.document)
-}
-
-func (id *DOM) DumpRelationships() {
-	for _, node := range id.document {
-		LogInfo(node.Parent)
-	}
+func (id *DOM) Print() {
+	LogInfo(id.document)
 }
 
 //
 // DOM: Parse the Token attributes into a map.
 //
-func (id *DOM) _nodeAttributes(node *html.Node) (attrs DOMNodeAttributes) {
+func (id *DOM) _parseHTMLNodeAttributes(node *html.Node) (attrs DOMNodeAttributes) {
 	attrs = make(DOMNodeAttributes)
 
+	// NOTE: keys never have whitespace once parsed / values (even IDs) retain whitespace
+	// parse the []html.Attribute into a hashmap
 	for _, attr := range node.Attr {
 		attrs[attr.Key] = attr.Val
 	}
@@ -159,11 +157,11 @@ func (id *DOM) _nodeAttributes(node *html.Node) (attrs DOMNodeAttributes) {
 //
 // DOM: Parse the Token attributes into a map.
 //
-func (id *DOM) _parseFragment(parent *DOMNode, root *html.Node, contents string) {
-	nodes, err := html.ParseFragment(strings.NewReader(contents), root)
+func (id *DOM) _parseHTMLFragment(parent *DOMNode, current *html.Node, contents string) {
+	nodes, err := html.ParseFragment(strings.NewReader(contents), current)
 	if err == nil {
 		for _, node := range nodes {
-			id._walk(parent, node, true)
+			id._parseHTMLNode(parent, node, true)
 		}
 	}
 }
@@ -171,21 +169,30 @@ func (id *DOM) _parseFragment(parent *DOMNode, root *html.Node, contents string)
 //
 // DOM: Walk the DOM and parse the HTML tokens into Nodes.
 //
-func (id *DOM) _walk(parent *DOMNode, root *html.Node, fragment bool) {
-	parseSkipTags := map[string]int{"script": 1, "style": 1, "body": 1}
-	fragmentSkipTags := map[string]int{"html": 1, "head": 1, "body": 1}
+var (
+	parseSkipTags    map[string]int
+	fragmentSkipTags map[string]int
+	once             sync.Once
+)
 
-	switch root.Type {
+func (id *DOM) _parseHTMLNode(parent *DOMNode, current *html.Node, fragment bool) {
+	// these are reusable and constant, good singleton candidates
+	once.Do(func() {
+		parseSkipTags = map[string]int{"script": 1, "style": 1, "body": 1}
+		fragmentSkipTags = map[string]int{"html": 1, "head": 1, "body": 1}
+	})
+
+	switch current.Type {
 	case html.ElementNode:
-		if !fragment || (fragment && fragmentSkipTags[root.Data] == 0) {
-			domNode := NewDOMNode(parent, root.Data, id._nodeAttributes(root))
+		if !fragment || (fragment && fragmentSkipTags[current.Data] == 0) {
+			id.nodeCount += 1
+			domNode := NewDOMNode(id.nodeCount, parent, current.Data, id._parseHTMLNodeAttributes(current))
 			// set the children and swap
 			if parent != nil {
 				parent.Children = append(parent.Children, domNode)
 			}
 			parent = domNode
 			id.document = append(id.document, domNode)
-			domNode.Index = len(id.document)
 			nodeArr := id.nodes[domNode.Tag]
 			if nodeArr != nil {
 				id.nodes[domNode.Tag] = append(nodeArr, domNode)
@@ -194,40 +201,41 @@ func (id *DOM) _walk(parent *DOMNode, root *html.Node, fragment bool) {
 			}
 		}
 	case html.TextNode:
-		text := strings.TrimSpace(root.Data)
+		text := strings.TrimSpace(current.Data)
 		if len(text) > 0 {
-			if root.Parent == nil || parseSkipTags[root.Parent.Data] == 0 {
-				id._parseFragment(parent, root.Parent, text)
+			if current.Parent == nil || parseSkipTags[current.Parent.Data] == 0 {
+				id._parseHTMLFragment(parent, current.Parent, text)
 			} else {
 				dlen := len(id.document)
 				if dlen > 0 {
 					owningNode := id.document[dlen-1]
 					if owningNode != nil {
-						owningNode.Text = strings.TrimSpace(root.Data)
+						owningNode.Text = text
 					}
 				}
 			}
 		}
 	case html.CommentNode:
-		domNode := NewDOMNode(parent, "comment", id._nodeAttributes(root))
+		id.nodeCount += 1
+		domNode := NewDOMNode(id.nodeCount, parent, "comment", id._parseHTMLNodeAttributes(current))
 		id.document = append(id.document, domNode)
-		domNode.Index = len(id.document)
 	case html.ErrorNode:
-		domNode := NewDOMNode(parent, "error", id._nodeAttributes(root))
+		id.nodeCount += 1
+		domNode := NewDOMNode(id.nodeCount, parent, "error", id._parseHTMLNodeAttributes(current))
 		id.document = append(id.document, domNode)
-		domNode.Index = len(id.document)
 	case html.DocumentNode:
-		domNode := NewDOMNode(parent, "document", id._nodeAttributes(root))
+		id.nodeCount += 1
+		domNode := NewDOMNode(id.nodeCount, parent, "document", id._parseHTMLNodeAttributes(current))
 		id.document = append(id.document, domNode)
-		domNode.Index = len(id.document)
 	case html.DoctypeNode:
-		domNode := NewDOMNode(parent, "doctype", id._nodeAttributes(root))
+		id.nodeCount += 1
+		domNode := NewDOMNode(id.nodeCount, parent, "doctype", id._parseHTMLNodeAttributes(current))
 		id.document = append(id.document, domNode)
-		domNode.Index = len(id.document)
 	}
 
-	for child := root.FirstChild; child != nil; child = child.NextSibling {
-		id._walk(parent, child, fragment)
+	// recurse for all child nodes
+	for child := current.FirstChild; child != nil; child = child.NextSibling {
+		id._parseHTMLNode(parent, child, fragment)
 	}
 }
 
@@ -237,26 +245,8 @@ func (id *DOM) _walk(parent *DOMNode, root *html.Node, fragment bool) {
 func (id *DOM) _parse(contents string) {
 	doc, err := html.Parse(strings.NewReader(contents))
 	if err == nil {
-		id._walk(nil, doc, false)
+		id._parseHTMLNode(nil, doc, false)
 	}
-}
-
-//
-// DumpLinks : Show the a hrefs in the DOM
-//
-func (id *DOM) DumpLinks() (result []string) {
-	result = make([]string, 100)
-
-	tagNodes := id.nodes["a"]
-	for _, node := range tagNodes {
-		attr := node.Attributes
-		value := attr["href"]
-		if len(value) > 0 {
-			result = append(result, value)
-		}
-	}
-
-	return result
 }
 
 //
@@ -275,9 +265,9 @@ func (id *DOM) IsDescendantNode(parent *DOMNode, node *DOMNode) (result bool) {
 		result = true
 	} else {
 		// we would have matched above if parent and node were the root node
-		root := id.RootNode()
-		for node != nil && parent.Index <= node.Index && node.Index != root.Index {
-			if node.Parent.Index == parent.Index {
+		rootNode := id.RootNode()
+		for node != nil && parent.Index <= node.Index && node != rootNode {
+			if node.Parent == parent {
 				result = true
 				break
 			} else {
