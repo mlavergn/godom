@@ -97,6 +97,12 @@ func (id *DOM) String() (result string) {
 // SetContents : parse the raw html contents.
 //
 func (id *DOM) SetContents(html string) {
+	// reset
+	id.document = nil
+	id.nodes = make(map[string][]*DOMNode)
+	id.rootNode = nil
+	id.nodeCount = 0
+
 	id.contents = html
 	id._parse(html)
 }
@@ -395,11 +401,19 @@ func (id *DOM) NodeFindJSONForScriptWithKey(parent *DOMNode, substring string) (
 
 		// unmarshall is strict and wants complete JSON structures
 		if !strings.HasPrefix(sub, "{") {
-			sub = "{" + sub + "}"
+			idx = strings.Index(sub, "=")
+			if idx > 0 {
+				sub = sub[idx+1:]
+			} else {
+				sub = "{" + sub + "}"
+			}
 		}
 
 		bytes := []byte(sub)
-		json.Unmarshal(bytes, &result)
+		err := json.Unmarshal(bytes, &result)
+		if err != nil {
+			LogError(err, "\n", sub)
+		}
 	}
 
 	return result
