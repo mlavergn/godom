@@ -70,15 +70,15 @@ func TestAttr(t *testing.T) {
 			args["url"] = node[0].Attr("value")
 
 			if args["user"] != "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA@private" {
-				d.Print()
+				d.Dump()
 				t.Error("failed to parse arguments")
 			}
 		} else {
-			d.Print()
+			d.Dump()
 			t.Error("failed to find ACTION")
 		}
 	} else {
-		d.Print()
+		d.Dump()
 		t.Error("failed to find FORM")
 	}
 }
@@ -89,12 +89,12 @@ func TestChild(t *testing.T) {
 	d.SetContents("<html><option id='2'>LOL</option><form action ='/foo'><select id='s'><option id='1'>Foo</option><option id='2'>Bar</option></select></form><div id='d'>Hello</div></html>")
 	p := d.Find("select", map[string]string{"id": "s"})
 	if len(p) != 1 {
-		d.Print()
+		d.Dump()
 		t.Errorf("failed to find SELECT node")
 	}
 	c := d.NodeFind(p[0], "option", map[string]string{"id": "2"})
 	if len(c) != 1 || c[0].Attributes["id"] != "2" {
-		d.Print()
+		d.Dump()
 		t.Errorf("failed to find OPTION node")
 	}
 }
