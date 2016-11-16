@@ -19,6 +19,11 @@ type DOMNodeAttributes map[string]string
 // JSONMap map of interface keyed by strings
 type JSONMap map[string]interface{}
 
+type JSONDelimiter []string
+
+var JSONArray = JSONDelimiter{"[", "]"}
+var JSONDictionary = JSONDelimiter{"{", "}"}
+
 // DOMNode def
 //
 type DOMNode struct {
@@ -96,15 +101,21 @@ func (id *DOM) String() (result string) {
 //
 // SetContents : parse the raw html contents.
 //
-func (id *DOM) SetContents(html string) {
+func (id *DOM) SetContents(htmlString string) {
 	// reset
 	id.document = nil
 	id.nodes = make(map[string][]*DOMNode)
 	id.rootNode = nil
 	id.nodeCount = 0
 
-	id.contents = html
-	id._parse(html)
+	id.contents = htmlString
+
+	doc, err := html.Parse(strings.NewReader(htmlString))
+	if err == nil {
+		id._parseHTMLNode(nil, doc, false)
+	} else {
+		LogError(err)
+	}
 }
 
 //
@@ -139,9 +150,9 @@ func (id *DOM) RootNode() (result *DOMNode) {
 }
 
 //
-// DumpNodes : Print the textual representation of the DOM
+// Dump : dump the textual representation of the DOM
 //
-func (id *DOM) Print() {
+func (id *DOM) Dump() {
 	LogInfo(id.document)
 }
 
@@ -209,15 +220,17 @@ func (id *DOM) _parseHTMLNode(parent *DOMNode, current *html.Node, fragment bool
 	case html.TextNode:
 		text := strings.TrimSpace(current.Data)
 		if len(text) > 0 {
-			if current.Parent == nil || parseSkipTags[current.Parent.Data] == 0 {
+			if strings.Index(text, "<") != -1 && (current.Parent == nil || parseSkipTags[current.Parent.Data] == 0) {
 				id._parseHTMLFragment(parent, current.Parent, text)
 			} else {
-				dlen := len(id.document)
-				if dlen > 0 {
-					owningNode := id.document[dlen-1]
-					if owningNode != nil {
-						owningNode.Text = text
-					}
+				// we need to handle structures like (eg. <div><strong>foo</strong>bar</div>)
+				// the assumption is that we can bubble back until a parent with no text is found
+				owningNode := id.document[len(id.document)-1]
+				for owningNode != nil && len(owningNode.Text) != 0 {
+					owningNode = owningNode.Parent
+				}
+				if owningNode != nil {
+					owningNode.Text = text
 				}
 			}
 		}
@@ -242,16 +255,6 @@ func (id *DOM) _parseHTMLNode(parent *DOMNode, current *html.Node, fragment bool
 	// recurse for all child nodes
 	for child := current.FirstChild; child != nil; child = child.NextSibling {
 		id._parseHTMLNode(parent, child, fragment)
-	}
-}
-
-//
-// DOM: Walk the DOM and parse the HTML tokens into Nodes.
-//
-func (id *DOM) _parse(contents string) {
-	doc, err := html.Parse(strings.NewReader(contents))
-	if err == nil {
-		id._parseHTMLNode(nil, doc, false)
 	}
 }
 
@@ -381,36 +384,58 @@ func (id *DOM) NodeFindTextForClass(parent *DOMNode, tag string, class string) (
 // FindJSONForScriptWithKey : Find the JSON key with text containing substring
 //
 func (id *DOM) FindJSONForScriptWithKey(substring string) (result JSONMap) {
-	return id.NodeFindJSONForScriptWithKey(id.RootNode(), substring)
+	return id.NodeFindJSONForScriptWithKeyDelimiter(id.RootNode(), substring, JSONDictionary)
+}
+
+func (id *DOM) FindJSONForScriptWithKeyDelimiter(substring string, delimiter JSONDelimiter) (result JSONMap) {
+	return id.NodeFindJSONForScriptWithKeyDelimiter(id.RootNode(), substring, delimiter)
 }
 
 //
 // NodeFindJSONForScriptWithKey : Find the child JSON key with text containing substring
 //
-func (id *DOM) NodeFindJSONForScriptWithKey(parent *DOMNode, substring string) (result JSONMap) {
+func (id *DOM) NodeFindJSONForScriptWithKeyDelimiter(parent *DOMNode, substring string, delimiter JSONDelimiter) (result JSONMap) {
 	nodes := id.NodeFindWithKey(parent, "script", substring)
 
 	if len(nodes) > 0 {
 		contents := nodes[0].Text
 		idx := strings.Index(contents, substring)
 		sub := contents[idx:]
-		idx = strings.Index(sub, "}")
+		idx = strings.Index(sub, delimiter[1])
 		if idx >= 0 {
 			sub = sub[:idx+1]
 		}
 
 		// unmarshall is strict and wants complete JSON structures
-		if !strings.HasPrefix(sub, "{") {
-			idx = strings.Index(sub, "=")
+		if !strings.HasPrefix(sub, delimiter[0]) {
+			idx = strings.Index(sub, delimiter[0])
 			if idx > 0 {
-				sub = sub[idx+1:]
+				sub = sub[idx:]
 			} else {
-				sub = "{" + sub + "}"
+				sub = delimiter[0] + sub + delimiter[1]
 			}
 		}
 
 		bytes := []byte(sub)
 		err := json.Unmarshal(bytes, &result)
+		if err != nil {
+			if strings.HasPrefix(err.Error(), "invalid character ") {
+				// JSON improper escaping detected - need to split the string and tidy it
+				LogDebug("Tidy JSON")
+				subtidy := delimiter[0]
+				entries := strings.Split(sub[1:len(sub)-1], ",")
+				for _, entry := range entries {
+					val := strings.Split(entry, ":")
+					subtidy += fmt.Sprintf("\"%s\": \"%s\",", strings.Trim(val[0], " '"), strings.Trim(val[1], " '"))
+				}
+				subtidy = subtidy[:len(subtidy)-1] + delimiter[1]
+
+				bytes := []byte(subtidy)
+				err = json.Unmarshal(bytes, &result)
+			}
+		}
+
+		// we may have reset err above, so recheck
 		if err != nil {
 			LogError(err, "\n", sub)
 		}
