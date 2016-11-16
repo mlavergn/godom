@@ -223,14 +223,14 @@ func (id *DOM) _parseHTMLNode(parent *DOMNode, current *html.Node, fragment bool
 			if strings.Index(text, "<") != -1 && (current.Parent == nil || parseSkipTags[current.Parent.Data] == 0) {
 				id._parseHTMLFragment(parent, current.Parent, text)
 			} else {
-				// we need to handle structures like (eg. <div><strong>foo</strong>bar</div>)
-				// the assumption is that we can bubble back until a parent with no text is found
-				owningNode := id.document[len(id.document)-1]
-				for owningNode != nil && len(owningNode.Text) != 0 {
-					owningNode = owningNode.Parent
+				// we need to handle structures like (eg. <div>foo<strong>baz</strong>bar</div>)
+				// Assumption: if the current node already has text, it belongs to the parent
+				currentNode := id.document[len(id.document)-1]
+				if currentNode != nil && len(currentNode.Text) != 0 {
+					currentNode = currentNode.Parent
 				}
-				if owningNode != nil {
-					owningNode.Text = text
+				if currentNode != nil {
+					currentNode.Text += text
 				}
 			}
 		}
