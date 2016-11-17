@@ -230,7 +230,11 @@ func (id *DOM) _parseHTMLNode(parent *DOMNode, current *html.Node, fragment bool
 					currentNode = currentNode.Parent
 				}
 				if currentNode != nil {
-					currentNode.Text += text
+					if len(currentNode.Text) > 0 {
+						currentNode.Text += " " + text
+					} else {
+						currentNode.Text = text
+					}
 				}
 			}
 		}

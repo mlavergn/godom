@@ -98,3 +98,19 @@ func TestChild(t *testing.T) {
 		t.Errorf("failed to find OPTION node")
 	}
 }
+
+func TestDivText(t *testing.T) {
+	SetLogLevel(LOG_DEBUG)
+	d := NewDOM()
+	d.SetContents("<html><div id=\"a\">Hello <strong>there</strong> world</div><div id=\"b\">Foo</div></html>")
+	p := d.Find("div", map[string]string{"id": "a"})
+	if len(p) != 1 {
+		d.Dump()
+		t.Errorf("failed to find node")
+	} else {
+		if p[0].Text != "Hello world" {
+			d.Dump()
+			t.Errorf("failed to recombine text [%s]", p[0].Text)
+		}
+	}
+}
