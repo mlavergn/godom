@@ -1,5 +1,7 @@
 # godom
 DOM data extraction package in pure golang
+
+NOTE: I might merge this package with goweb since they're so closely related
 --
 Dependencies:
 This package has an external dependencies:
