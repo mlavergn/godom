@@ -27,12 +27,12 @@ var JSONDictionary = JSONDelimiter{"{", "}"}
 // DOMNode def
 //
 type DOMNode struct {
-	Index      int
-	Tag        string
-	Attributes DOMNodeAttributes
-	Text       string
-	Parent     *DOMNode
-	Children   []*DOMNode
+	Index         int
+	Tag           string
+	Attributes    DOMNodeAttributes
+	TextFragments []string
+	Parent        *DOMNode
+	Children      []*DOMNode
 }
 
 //
@@ -47,7 +47,7 @@ func NewDOMNode(index int, parent *DOMNode, tag string, attributes DOMNodeAttrib
 //
 func (id *DOMNode) String() (desc string) {
 	desc = ""
-	desc += fmt.Sprintf("\nIndex:\t%d\nTag:\t%s\nAttr:\t%s\nText:\t%s\n", id.Index, id.Tag, id.Attributes, id.Text)
+	desc += fmt.Sprintf("\nIndex:\t%d\nTag:\t%s\nAttr:\t%s\nTextFragments:\t%s\n", id.Index, id.Tag, id.Attributes, id.TextFragments)
 	if id.Parent != nil {
 		desc += fmt.Sprintf("Edges:\n\tParent:\t%d - %s\n", id.Parent.Index, id.Parent.Tag)
 	}
@@ -64,6 +64,62 @@ func (id *DOMNode) String() (desc string) {
 //
 func (id *DOMNode) Attr(key string) string {
 	return id.Attributes[key]
+}
+
+func (id *DOMNode) Text() (result string) {
+	// Join() has a 2x performance penalty over len() for single fragments
+	// Single fragments comprise 99% of fragments, thus the switch/case
+	switch len(id.TextFragments) {
+	case 0:
+	case 1:
+		result = id.TextFragments[0]
+	default:
+		result = strings.Join(id.TextFragments, " ")
+	}
+
+	return
+}
+
+//
+// ReaderText recombines the node text fragments into the human reader visibile text
+//
+func (id *DOMNode) ReaderText() (result string) {
+	fragCount := len(id.TextFragments)
+	childCount := len(id.Children)
+
+	// recursively recombine any child node text fragments
+	if childCount == 0 {
+		// there are no children, defer to Text()
+		result = id.Text()
+	} else {
+		i := 0
+
+		// there may not be a leading fragment, be we assume there is
+		if i < fragCount {
+			result += id.TextFragments[i] + " "
+			i += 1
+		}
+
+		// interleave child text and fragments until there are no more
+		for _, child := range id.Children {
+			childText := child.ReaderText()
+			if len(childText) > 0 {
+				result += childText + " "
+				if fragCount > 2 && i < fragCount {
+					result += id.TextFragments[i] + " "
+					i += 1
+				}
+			}
+		}
+		result = strings.TrimSpace(result)
+
+		// any trailing fragments, this should be at most count 1
+		if i < fragCount {
+			result += " " + strings.Join(id.TextFragments[i:], " ")
+		}
+	}
+
+	return
 }
 
 //
@@ -219,23 +275,17 @@ func (id *DOM) _parseHTMLNode(parent *DOMNode, current *html.Node, fragment bool
 		}
 	case html.TextNode:
 		text := strings.TrimSpace(current.Data)
-		if len(text) > 0 {
-			if strings.Index(text, "<") != -1 && (current.Parent == nil || parseSkipTags[current.Parent.Data] == 0) {
-				id._parseHTMLFragment(parent, current.Parent, text)
-			} else {
-				// we need to handle structures like (eg. <div>foo<strong>baz</strong>bar</div>)
-				// Assumption: if the current node already has text, it belongs to the parent
-				currentNode := id.document[len(id.document)-1]
-				if currentNode != nil && len(currentNode.Text) != 0 {
-					currentNode = currentNode.Parent
-				}
-				if currentNode != nil {
-					if len(currentNode.Text) > 0 {
-						currentNode.Text += " " + text
-					} else {
-						currentNode.Text = text
-					}
-				}
+		if strings.Index(text, "<") != -1 && (current.Parent == nil || parseSkipTags[current.Parent.Data] == 0) {
+			id._parseHTMLFragment(parent, current.Parent, text)
+		} else {
+			// we need to handle structures like (eg. <div>foo<strong>baz</strong>bar</div>)
+			// Assumption: if the current node already has text, it belongs to the parent
+			currentNode := id.document[len(id.document)-1]
+			if currentNode != nil && len(currentNode.TextFragments) != 0 {
+				currentNode = currentNode.Parent
+			}
+			if currentNode != nil {
+				currentNode.TextFragments = append(currentNode.TextFragments, text)
 			}
 		}
 	case html.CommentNode:
@@ -353,7 +403,7 @@ func (id *DOM) NodeFindWithKey(parent *DOMNode, tag string, substring string) (r
 	for _, node := range tagNodes {
 		// found a matching tag
 		if id.IsDescendantNode(parent, node) {
-			contents := node.Text
+			contents := node.Text()
 			idx := strings.Index(contents, substring)
 			if idx >= 0 {
 				result = append(result, node)
@@ -378,7 +428,7 @@ func (id *DOM) NodeFindTextForClass(parent *DOMNode, tag string, class string) (
 	nodes := id.NodeFind(parent, tag, DOMNodeAttributes{"class": class})
 
 	if len(nodes) > 0 {
-		result = nodes[0].Text
+		result = nodes[0].Text()
 	}
 
 	return result
@@ -402,7 +452,7 @@ func (id *DOM) NodeFindJSONForScriptWithKeyDelimiter(parent *DOMNode, substring 
 	nodes := id.NodeFindWithKey(parent, "script", substring)
 
 	if len(nodes) > 0 {
-		contents := nodes[0].Text
+		contents := nodes[0].Text()
 		idx := strings.Index(contents, substring)
 		sub := contents[idx:]
 		idx = strings.Index(sub, delimiter[1])

@@ -20,7 +20,7 @@ func TestDOMSetContents(t *testing.T) {
 	}
 }
 
-func _loadData(t *testing.T, fileName string) (contents string) {
+func loadData(t *testing.T, fileName string) (contents string) {
 	_, filename, _, _ := runtime.Caller(0)
 	contentPath := path.Join(path.Dir(filename), "_testdata", fileName)
 	bytes, err := ioutil.ReadFile(contentPath)
@@ -34,7 +34,7 @@ func _loadData(t *testing.T, fileName string) (contents string) {
 }
 
 func TestFind(t *testing.T) {
-	contents := _loadData(t, "test_a.html")
+	contents := loadData(t, "test_a.html")
 
 	d := NewDOM()
 	d.SetContents(contents)
@@ -46,7 +46,7 @@ func TestFind(t *testing.T) {
 }
 
 func TestAttr(t *testing.T) {
-	contents := _loadData(t, "test_b.html")
+	contents := loadData(t, "test_b.html")
 
 	d := NewDOM()
 	d.SetContents(contents)
@@ -108,9 +108,26 @@ func TestDivText(t *testing.T) {
 		d.Dump()
 		t.Errorf("failed to find node")
 	} else {
-		if p[0].Text != "Hello world" {
+		if p[0].Text() != "Hello world" {
 			d.Dump()
 			t.Errorf("failed to recombine text [%s]", p[0].Text)
 		}
 	}
+}
+
+func TestReaderText(t *testing.T) {
+	SetLogLevel(LOG_DEBUG)
+	d := NewDOM()
+	d.SetContents("<html><div id=\"a\">Hello <strong>there<p>foo<strong>bar</strong></p></strong><bold>there</bold> world</div><div id=\"b\">Foo</div></html>")
+	p := d.Find("div", map[string]string{"id": "a"})
+	if len(p) != 1 {
+		d.Dump()
+		t.Errorf("failed to find node")
+	} else {
+		if p[0].ReaderText() != "Hello there foo bar there world" {
+			d.Dump()
+			t.Errorf("failed to generate reader text [%s]", p[0].Text)
+		}
+	}
+
 }
