@@ -1,5 +1,5 @@
 # godom
-DOM data extraction package inspired by BeautifulSoup in pure golang
+DOM data extraction package in pure golang
 --
 Dependencies:
 This package has an external dependencies:
