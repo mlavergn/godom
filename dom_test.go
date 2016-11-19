@@ -92,7 +92,7 @@ func TestChild(t *testing.T) {
 		d.Dump()
 		t.Errorf("failed to find SELECT node")
 	}
-	c := d.NodeFind(p[0], "option", map[string]string{"id": "2"})
+	c := d.ChildFind(p[0], "option", map[string]string{"id": "2"})
 	if len(c) != 1 || c[0].Attributes["id"] != "2" {
 		d.Dump()
 		t.Errorf("failed to find OPTION node")

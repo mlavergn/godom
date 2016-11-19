@@ -21,8 +21,8 @@ type JSONMap map[string]interface{}
 
 type JSONDelimiter []string
 
-var JSONArray = JSONDelimiter{"[", "]"}
-var JSONDictionary = JSONDelimiter{"{", "}"}
+var JSONArrayDelimiterPrivate = JSONDelimiter{"[", "]"}
+var JSONDictionaryDelimiterPrivate = JSONDelimiter{"{", "}"}
 
 // DOMNode def
 //
@@ -360,13 +360,13 @@ func (id *DOM) IsChildNode(parent *DOMNode, node *DOMNode) (result bool) {
 // Find : Find the Node of type tag with the specified attributes
 //
 func (id *DOM) Find(tag string, attributes DOMNodeAttributes) (result []*DOMNode) {
-	return id.NodeFind(id.RootNode(), tag, attributes)
+	return id.ChildFind(id.RootNode(), tag, attributes)
 }
 
 //
-// NodeFind : Find the child Node of type tag with the specified attributes
+// ChildFind : Find the child Node of type tag with the specified attributes
 //
-func (id *DOM) NodeFind(parent *DOMNode, tag string, attributes DOMNodeAttributes) (result []*DOMNode) {
+func (id *DOM) ChildFind(parent *DOMNode, tag string, attributes DOMNodeAttributes) (result []*DOMNode) {
 	found := true
 	tagNodes := id.nodes[tag]
 	for _, node := range tagNodes {
@@ -392,13 +392,13 @@ func (id *DOM) NodeFind(parent *DOMNode, tag string, attributes DOMNodeAttribute
 // FindWithKey : Find the Node of type tag with text containing key
 //
 func (id *DOM) FindWithKey(tag string, substring string) (result []*DOMNode) {
-	return id.NodeFindWithKey(id.RootNode(), tag, substring)
+	return id.ChildFindWithKey(id.RootNode(), tag, substring)
 }
 
 //
-// NodeFindWithKey : Find the child Node of type tag with text containing key
+// ChildFindWithKey : Find the child Node of type tag with text containing key
 //
-func (id *DOM) NodeFindWithKey(parent *DOMNode, tag string, substring string) (result []*DOMNode) {
+func (id *DOM) ChildFindWithKey(parent *DOMNode, tag string, substring string) (result []*DOMNode) {
 	tagNodes := id.nodes[tag]
 	for _, node := range tagNodes {
 		// found a matching tag
@@ -418,14 +418,14 @@ func (id *DOM) NodeFindWithKey(parent *DOMNode, tag string, substring string) (r
 // FindTextForClass : Find the given tag with the specified attributes
 //
 func (id *DOM) FindTextForClass(tag string, class string) (result string) {
-	return id.NodeFindTextForClass(id.RootNode(), tag, class)
+	return id.ChildFindTextForClass(id.RootNode(), tag, class)
 }
 
 //
-// NodeFindTextForClass : Find the child given tag with the specified attributes
+// ChildFindTextForClass : Find the child given tag with the specified attributes
 //
-func (id *DOM) NodeFindTextForClass(parent *DOMNode, tag string, class string) (result string) {
-	nodes := id.NodeFind(parent, tag, DOMNodeAttributes{"class": class})
+func (id *DOM) ChildFindTextForClass(parent *DOMNode, tag string, class string) (result string) {
+	nodes := id.ChildFind(parent, tag, DOMNodeAttributes{"class": class})
 
 	if len(nodes) > 0 {
 		result = nodes[0].Text()
@@ -437,19 +437,19 @@ func (id *DOM) NodeFindTextForClass(parent *DOMNode, tag string, class string) (
 //
 // FindJSONForScriptWithKey : Find the JSON key with text containing substring
 //
-func (id *DOM) FindJSONForScriptWithKey(substring string) (result JSONMap) {
-	return id.NodeFindJSONForScriptWithKeyDelimiter(id.RootNode(), substring, JSONDictionary)
+func (id *DOM) FindJSONForScriptWithKey(substring string) (result JSONMap, err error) {
+	return id.ChildFindJSONForScriptWithKeyDelimiter(id.RootNode(), substring, JSONDictionaryDelimiterPrivate)
 }
 
-func (id *DOM) FindJSONForScriptWithKeyDelimiter(substring string, delimiter JSONDelimiter) (result JSONMap) {
-	return id.NodeFindJSONForScriptWithKeyDelimiter(id.RootNode(), substring, delimiter)
+func (id *DOM) FindJSONForScriptWithKeyDelimiter(substring string, delimiter JSONDelimiter) (result JSONMap, err error) {
+	return id.ChildFindJSONForScriptWithKeyDelimiter(id.RootNode(), substring, delimiter)
 }
 
 //
-// NodeFindJSONForScriptWithKey : Find the child JSON key with text containing substring
+// ChildFindJSONForScriptWithKey : Find the child JSON key with text containing substring
 //
-func (id *DOM) NodeFindJSONForScriptWithKeyDelimiter(parent *DOMNode, substring string, delimiter JSONDelimiter) (result JSONMap) {
-	nodes := id.NodeFindWithKey(parent, "script", substring)
+func (id *DOM) ChildFindJSONForScriptWithKeyDelimiter(parent *DOMNode, substring string, delimiter JSONDelimiter) (result JSONMap, err error) {
+	nodes := id.ChildFindWithKey(parent, "script", substring)
 
 	if len(nodes) > 0 {
 		contents := nodes[0].Text()
@@ -470,8 +470,13 @@ func (id *DOM) NodeFindJSONForScriptWithKeyDelimiter(parent *DOMNode, substring 
 			}
 		}
 
+		// no newlines
+		sub = strings.Replace(sub, "\n", "", -1)
+		// no tabs
+		sub = strings.Replace(sub, "\t", "", -1)
+
 		bytes := []byte(sub)
-		err := json.Unmarshal(bytes, &result)
+		err = json.Unmarshal(bytes, &result)
 		if err != nil {
 			if strings.HasPrefix(err.Error(), "invalid character ") {
 				// JSON improper escaping detected - need to split the string and tidy it
@@ -495,5 +500,5 @@ func (id *DOM) NodeFindJSONForScriptWithKeyDelimiter(parent *DOMNode, substring 
 		}
 	}
 
-	return result
+	return
 }
