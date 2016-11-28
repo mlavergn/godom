@@ -1,7 +1,11 @@
 # godom
+
+NOTE: This package is EOL. 
+
+godom has been merged with goweb as of 11/2016
+
 DOM data extraction package in pure golang
 
-NOTE: I might merge this package with goweb since they're so closely related
 --
 Dependencies:
 This package has an external dependencies:
