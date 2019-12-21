@@ -1,18 +1,13 @@
-# godom
+[![Build Status](https://github.com/mlavergn/paw-xhr-codegen/workflows/CI/badge.svg?branch=master)](https://github.com/mlavergn/paw-xhr-codegen/actions)
 
-### NOTE: This package is EOL.
+# GoDOM DOM data extraction package inspired by BeautifulSoup
 
-godom has been merged with goweb as of 11/2016
+DOM data extraction package with a Python BeautifulSoup like API
 
---
-
-DOM data extraction package in pure golang
+This project was updated for Go 1.13.
 
 Dependencies:
 
-This package has an external dependencies:
+This package has an external dependency:
 
 * golang.org/x/net/html
-  * go get -d -u golang.org/x/net/html
-  * go test golang.org/x/net/html
-* https://godoc.org/golang.org/x/net/html
