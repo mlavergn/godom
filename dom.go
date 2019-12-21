@@ -1,5 +1,5 @@
-// Copyright 2016, Marc Lavergne <mlavergn@gmail.com>. All rights reserved.
-// Use of this source code is governed by the MIT
+// Copyright 2016 Marc Lavergne <mlavergn@gmail.com>. All rights reserved.
+// Use of this source code is governed by
 // license that can be found in the LICENSE file.
 
 package godom
@@ -8,7 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"golang.org/x/net/html"
-	. "golog"
+	"log"
 	"strings"
 	"sync"
 )
@@ -19,10 +19,14 @@ type DOMNodeAttributes map[string]string
 // JSONMap map of interface keyed by strings
 type JSONMap map[string]interface{}
 
-type JSONDelimiter []string
+// JSONDelimiter type
+type JSONDelimiter [2]string
 
-var JSONArrayDelimiterPrivate = JSONDelimiter{"[", "]"}
-var JSONDictionaryDelimiterPrivate = JSONDelimiter{"{", "}"}
+// JSONArrayDelimiter type
+var JSONArrayDelimiter = JSONDelimiter{"[", "]"}
+
+// JSONDictionaryDelimiter type
+var JSONDictionaryDelimiter = JSONDelimiter{"{", "}"}
 
 // DOMNode def
 //
@@ -38,8 +42,14 @@ type DOMNode struct {
 //
 // NewDOMNode constructor
 //
-func NewDOMNode(index int, parent *DOMNode, tag string, attributes DOMNodeAttributes) *DOMNode {
-	return &DOMNode{Index: index, Parent: parent, Children: []*DOMNode{}, Tag: strings.ToLower(tag), Attributes: attributes}
+func NewDOMNode(index int, parent *DOMNode, tag string, attributes DOMNodeAttributes) DOMNode {
+	return DOMNode{
+		Index:      index,
+		Parent:     parent,
+		Children:   []*DOMNode{},
+		Tag:        strings.ToLower(tag),
+		Attributes: attributes,
+	}
 }
 
 //
@@ -66,6 +76,7 @@ func (id *DOMNode) Attr(key string) string {
 	return id.Attributes[key]
 }
 
+// Text export
 func (id *DOMNode) Text() (result string) {
 	// Join() has a 2x performance penalty over len() for single fragments
 	// Single fragments comprise 99% of fragments, thus the switch/case
@@ -97,7 +108,7 @@ func (id *DOMNode) ReaderText() (result string) {
 		// there may not be a leading fragment, be we assume there is
 		if i < fragCount {
 			result += id.TextFragments[i] + " "
-			i += 1
+			i++
 		}
 
 		// interleave child text and fragments until there are no more
@@ -107,7 +118,7 @@ func (id *DOMNode) ReaderText() (result string) {
 				result += childText + " "
 				if fragCount > 2 && i < fragCount {
 					result += id.TextFragments[i] + " "
-					i += 1
+					i++
 				}
 			}
 		}
@@ -136,11 +147,10 @@ type DOM struct {
 //
 // NewDOM Constructor
 //
-func NewDOM() *DOM {
-	id := &DOM{}
-	id.nodes = make(map[string][]*DOMNode)
-	id.nodeCount = 0
-	return id
+func NewDOM() DOM {
+	return DOM{
+		nodes: map[string][]*DOMNode{},
+	}
 }
 
 //
@@ -158,20 +168,14 @@ func (id *DOM) String() (result string) {
 // SetContents : parse the raw html contents.
 //
 func (id *DOM) SetContents(htmlString string) {
-	// reset
-	id.document = nil
-	id.nodes = make(map[string][]*DOMNode)
-	id.rootNode = nil
-	id.nodeCount = 0
-
 	id.contents = htmlString
 
 	doc, err := html.Parse(strings.NewReader(htmlString))
-	if err == nil {
-		id._parseHTMLNode(nil, doc, false)
-	} else {
-		LogError(err)
+	if err != nil {
+		log.Println(err)
+		return
 	}
+	id.parseHTMLNode(nil, doc, false)
 }
 
 //
@@ -209,13 +213,13 @@ func (id *DOM) RootNode() (result *DOMNode) {
 // Dump : dump the textual representation of the DOM
 //
 func (id *DOM) Dump() {
-	LogInfo(id.document)
+	log.Println(id.document)
 }
 
 //
 // DOM: Parse the Token attributes into a map.
 //
-func (id *DOM) _parseHTMLNodeAttributes(node *html.Node) (attrs DOMNodeAttributes) {
+func (id *DOM) parseHTMLNodeAttributes(node *html.Node) (attrs DOMNodeAttributes) {
 	attrs = make(DOMNodeAttributes)
 
 	// NOTE: keys never have whitespace once parsed / values (even IDs) retain whitespace
@@ -230,11 +234,11 @@ func (id *DOM) _parseHTMLNodeAttributes(node *html.Node) (attrs DOMNodeAttribute
 //
 // DOM: Parse the Token attributes into a map.
 //
-func (id *DOM) _parseHTMLFragment(parent *DOMNode, current *html.Node, contents string) {
+func (id *DOM) parseHTMLFragment(parent *DOMNode, current *html.Node, contents string) {
 	nodes, err := html.ParseFragment(strings.NewReader(contents), current)
 	if err == nil {
 		for _, node := range nodes {
-			id._parseHTMLNode(parent, node, true)
+			id.parseHTMLNode(parent, node, true)
 		}
 	}
 }
@@ -248,7 +252,7 @@ var (
 	once             sync.Once
 )
 
-func (id *DOM) _parseHTMLNode(parent *DOMNode, current *html.Node, fragment bool) {
+func (id *DOM) parseHTMLNode(parent *DOMNode, current *html.Node, fragment bool) {
 	// these are reusable and constant, good singleton candidates
 	once.Do(func() {
 		parseSkipTags = map[string]int{"script": 1, "style": 1, "body": 1}
@@ -258,25 +262,25 @@ func (id *DOM) _parseHTMLNode(parent *DOMNode, current *html.Node, fragment bool
 	switch current.Type {
 	case html.ElementNode:
 		if !fragment || (fragment && fragmentSkipTags[current.Data] == 0) {
-			id.nodeCount += 1
-			domNode := NewDOMNode(id.nodeCount, parent, current.Data, id._parseHTMLNodeAttributes(current))
+			id.nodeCount++
+			domNode := NewDOMNode(id.nodeCount, parent, current.Data, id.parseHTMLNodeAttributes(current))
 			// set the children and swap
 			if parent != nil {
-				parent.Children = append(parent.Children, domNode)
+				parent.Children = append(parent.Children, &domNode)
 			}
-			parent = domNode
-			id.document = append(id.document, domNode)
+			parent = &domNode
+			id.document = append(id.document, &domNode)
 			nodeArr := id.nodes[domNode.Tag]
 			if nodeArr != nil {
-				id.nodes[domNode.Tag] = append(nodeArr, domNode)
+				id.nodes[domNode.Tag] = append(nodeArr, &domNode)
 			} else {
-				id.nodes[domNode.Tag] = []*DOMNode{domNode}
+				id.nodes[domNode.Tag] = []*DOMNode{&domNode}
 			}
 		}
 	case html.TextNode:
 		text := strings.TrimSpace(current.Data)
 		if strings.Index(text, "<") != -1 && (current.Parent == nil || parseSkipTags[current.Parent.Data] == 0) {
-			id._parseHTMLFragment(parent, current.Parent, text)
+			id.parseHTMLFragment(parent, current.Parent, text)
 		} else {
 			// we need to handle structures like (eg. <div>foo<strong>baz</strong>bar</div>)
 			// Assumption: if the current node already has text, it belongs to the parent
@@ -289,26 +293,26 @@ func (id *DOM) _parseHTMLNode(parent *DOMNode, current *html.Node, fragment bool
 			}
 		}
 	case html.CommentNode:
-		id.nodeCount += 1
-		domNode := NewDOMNode(id.nodeCount, parent, "comment", id._parseHTMLNodeAttributes(current))
-		id.document = append(id.document, domNode)
+		id.nodeCount++
+		domNode := NewDOMNode(id.nodeCount, parent, "comment", id.parseHTMLNodeAttributes(current))
+		id.document = append(id.document, &domNode)
 	case html.ErrorNode:
-		id.nodeCount += 1
-		domNode := NewDOMNode(id.nodeCount, parent, "error", id._parseHTMLNodeAttributes(current))
-		id.document = append(id.document, domNode)
+		id.nodeCount++
+		domNode := NewDOMNode(id.nodeCount, parent, "error", id.parseHTMLNodeAttributes(current))
+		id.document = append(id.document, &domNode)
 	case html.DocumentNode:
-		id.nodeCount += 1
-		domNode := NewDOMNode(id.nodeCount, parent, "document", id._parseHTMLNodeAttributes(current))
-		id.document = append(id.document, domNode)
+		id.nodeCount++
+		domNode := NewDOMNode(id.nodeCount, parent, "document", id.parseHTMLNodeAttributes(current))
+		id.document = append(id.document, &domNode)
 	case html.DoctypeNode:
-		id.nodeCount += 1
-		domNode := NewDOMNode(id.nodeCount, parent, "doctype", id._parseHTMLNodeAttributes(current))
-		id.document = append(id.document, domNode)
+		id.nodeCount++
+		domNode := NewDOMNode(id.nodeCount, parent, "doctype", id.parseHTMLNodeAttributes(current))
+		id.document = append(id.document, &domNode)
 	}
 
 	// recurse for all child nodes
 	for child := current.FirstChild; child != nil; child = child.NextSibling {
-		id._parseHTMLNode(parent, child, fragment)
+		id.parseHTMLNode(parent, child, fragment)
 	}
 }
 
@@ -438,15 +442,18 @@ func (id *DOM) ChildFindTextForClass(parent *DOMNode, tag string, class string) 
 // FindJSONForScriptWithKey : Find the JSON key with text containing substring
 //
 func (id *DOM) FindJSONForScriptWithKey(substring string) (result JSONMap, err error) {
-	return id.ChildFindJSONForScriptWithKeyDelimiter(id.RootNode(), substring, JSONDictionaryDelimiterPrivate)
+	return id.ChildFindJSONForScriptWithKeyDelimiter(id.RootNode(), substring, JSONDictionaryDelimiter)
 }
 
+//
+// FindJSONForScriptWithKeyDelimiter : Find the JSON key with delimited text containing substring
+//
 func (id *DOM) FindJSONForScriptWithKeyDelimiter(substring string, delimiter JSONDelimiter) (result JSONMap, err error) {
 	return id.ChildFindJSONForScriptWithKeyDelimiter(id.RootNode(), substring, delimiter)
 }
 
 //
-// ChildFindJSONForScriptWithKey : Find the child JSON key with text containing substring
+// ChildFindJSONForScriptWithKeyDelimiter : Find the child JSON key with delimited text containing substring
 //
 func (id *DOM) ChildFindJSONForScriptWithKeyDelimiter(parent *DOMNode, substring string, delimiter JSONDelimiter) (result JSONMap, err error) {
 	nodes := id.ChildFindWithKey(parent, "script", substring)
@@ -480,7 +487,7 @@ func (id *DOM) ChildFindJSONForScriptWithKeyDelimiter(parent *DOMNode, substring
 		if err != nil {
 			if strings.HasPrefix(err.Error(), "invalid character ") {
 				// JSON improper escaping detected - need to split the string and tidy it
-				LogDebug("Tidy JSON")
+				log.Println("Tidy JSON")
 				subtidy := delimiter[0]
 				entries := strings.Split(sub[1:len(sub)-1], ",")
 				for _, entry := range entries {
@@ -496,7 +503,7 @@ func (id *DOM) ChildFindJSONForScriptWithKeyDelimiter(parent *DOMNode, substring
 
 		// we may have reset err above, so recheck
 		if err != nil {
-			LogError(err, "\n", sub)
+			log.Println(err, "\n", sub)
 		}
 	}
 

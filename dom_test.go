@@ -5,7 +5,6 @@
 package godom
 
 import (
-	. "golog"
 	"io/ioutil"
 	"path"
 	"runtime"
@@ -84,7 +83,6 @@ func TestAttr(t *testing.T) {
 }
 
 func TestChild(t *testing.T) {
-	SetLogLevel(LOG_DEBUG)
 	d := NewDOM()
 	d.SetContents("<html><option id='2'>LOL</option><form action ='/foo'><select id='s'><option id='1'>Foo</option><option id='2'>Bar</option></select></form><div id='d'>Hello</div></html>")
 	p := d.Find("select", map[string]string{"id": "s"})
@@ -100,7 +98,6 @@ func TestChild(t *testing.T) {
 }
 
 func TestDivText(t *testing.T) {
-	SetLogLevel(LOG_DEBUG)
 	d := NewDOM()
 	d.SetContents("<html><div id=\"a\">Hello <strong>there</strong> world</div><div id=\"b\">Foo</div></html>")
 	p := d.Find("div", map[string]string{"id": "a"})
@@ -110,13 +107,12 @@ func TestDivText(t *testing.T) {
 	} else {
 		if p[0].Text() != "Hello world" {
 			d.Dump()
-			t.Errorf("failed to recombine text [%s]", p[0].Text)
+			t.Errorf("failed to recombine text [%s]", p[0].Text())
 		}
 	}
 }
 
 func TestReaderText(t *testing.T) {
-	SetLogLevel(LOG_DEBUG)
 	d := NewDOM()
 	d.SetContents("<html><div id=\"a\">Hello <strong>there<p>foo<strong>bar</strong></p></strong><bold>there</bold> world</div><div id=\"b\">Foo</div></html>")
 	p := d.Find("div", map[string]string{"id": "a"})
@@ -126,7 +122,7 @@ func TestReaderText(t *testing.T) {
 	} else {
 		if p[0].ReaderText() != "Hello there foo bar there world" {
 			d.Dump()
-			t.Errorf("failed to generate reader text [%s]", p[0].Text)
+			t.Errorf("failed to generate reader text [%s]", p[0].Text())
 		}
 	}
 
