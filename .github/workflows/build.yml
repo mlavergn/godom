@@ -16,7 +16,7 @@ jobs:
       uses: actions/setup-go@v1.1.0
       with:
         go-version: 1.13
-    id: go
+      id: go
 
     - name: Checkout
       uses: actions/checkout@v1
