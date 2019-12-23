@@ -21,3 +21,6 @@ build: deps
 
 test: build
 	GOPATH=${GOPATH} go test -v .
+
+github:
+	open "https://github.com/mlavergn/godom"

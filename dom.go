@@ -253,7 +253,7 @@ var (
 )
 
 func (id *DOM) parseHTMLNode(parent *DOMNode, current *html.Node, fragment bool) {
-	// these are reusable and constant, good singleton candidates
+	// constant candidates
 	once.Do(func() {
 		parseSkipTags = map[string]int{"script": 1, "style": 1, "body": 1}
 		fragmentSkipTags = map[string]int{"html": 1, "head": 1, "body": 1}
@@ -371,12 +371,11 @@ func (id *DOM) Find(tag string, attributes DOMNodeAttributes) (result []*DOMNode
 // ChildFind : Find the child Node of type tag with the specified attributes
 //
 func (id *DOM) ChildFind(parent *DOMNode, tag string, attributes DOMNodeAttributes) (result []*DOMNode) {
-	found := true
 	tagNodes := id.nodes[tag]
 	for _, node := range tagNodes {
 		// found a matching tag
 		nodeAttrs := node.Attributes
-		found = true
+		found := true
 		for k, v := range attributes {
 			if nodeAttrs[k] != v {
 				found = false
