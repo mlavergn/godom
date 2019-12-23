@@ -1,4 +1,5 @@
-[![Build Status](https://github.com/mlavergn/paw-xhr-codegen/workflows/CI/badge.svg?branch=master)](https://github.com/mlavergn/godom/actions)
+[![Build Status](https://github.com/mlavergn/godom/workflows/CI/badge.svg?branch=master)](https://github.com/mlavergn/godom/actions)
+[![Go Report](https://goreportcard.com/badge/github.com/mlavergn/godom)](https://goreportcard.com/report/github.com/mlavergn/godom)
 
 # GoDOM DOM data extraction package inspired by BeautifulSoup
 
